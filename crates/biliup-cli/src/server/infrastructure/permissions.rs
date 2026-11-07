@@ -323,6 +323,15 @@ pub fn required_permission(method: &Method, route: &str, raw_path: &str) -> Opti
         "/v1/login_by_qrcode" if method == Method::POST => AccountManage,
         "/bili/archive/pre" if get => UploadSubmit,
         "/v1/uploads" if method == Method::POST => UploadSubmit,
+        "/v1/local-drafts" | "/v1/local-drafts/{id}/cover" if get => FileView,
+        "/v1/local-drafts/settings" if method == Method::PUT => UploadSubmit,
+        "/v1/local-drafts/seasons" if get => UploadSubmit,
+        "/v1/local-drafts/{id}"
+            if method == Method::PUT || method == Method::DELETE =>
+        {
+            UploadSubmit
+        }
+        "/v1/local-drafts/{id}/publish" if method == Method::POST => UploadSubmit,
         "/v1/videos"
         | "/v1/activity-events"
         | "/v1/files/location"

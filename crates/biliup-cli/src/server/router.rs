@@ -74,6 +74,31 @@ pub fn router(service_register: ServiceRegister) -> Router<()> {
             get(crate::server::api::upload_queue::detail),
         )
         .route(
+            "/v1/local-drafts",
+            get(crate::server::api::local_drafts::list_drafts),
+        )
+        .route(
+            "/v1/local-drafts/settings",
+            put(crate::server::api::local_drafts::put_directory),
+        )
+        .route(
+            "/v1/local-drafts/seasons",
+            get(crate::server::api::local_drafts::list_seasons),
+        )
+        .route(
+            "/v1/local-drafts/{id}",
+            put(crate::server::api::local_drafts::put_draft)
+                .delete(crate::server::api::local_drafts::delete_draft),
+        )
+        .route(
+            "/v1/local-drafts/{id}/publish",
+            post(crate::server::api::local_drafts::publish_draft),
+        )
+        .route(
+            "/v1/local-drafts/{id}/cover",
+            get(crate::server::api::local_drafts::draft_cover),
+        )
+        .route(
             "/v1/session-merge-candidates",
             get(crate::server::api::session_groups::list_candidates),
         )

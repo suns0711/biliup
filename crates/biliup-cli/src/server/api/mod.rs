@@ -32,6 +32,8 @@ pub mod fleet_local;
 pub mod fleet_rooms;
 /// 录制中直播间的封面 / 头像图片代理
 pub mod live_media;
+/// 本地目录里待发布的视频
+pub mod local_drafts;
 /// 直播预览：把正在录制的流旁路给页面内播放器
 pub mod live_preview;
 /// 录制中直播间的写盘速率（每秒轮询的瘦端点，供码率曲线）

@@ -95,6 +95,12 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
     title: '投稿',
     items: [
       {
+        href: '/local-drafts',
+        perm: 'file.view',
+        label: '本地待发布',
+        icon: <Ic d="M4 4h10l6 6v10H4z" extra="M14 4v6h6M8 14h8M8 17h5" />,
+      },
+      {
         href: '/upload-manager',
         perm: 'streamer.view',
         label: '投稿管理',
