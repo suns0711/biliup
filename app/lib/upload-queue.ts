@@ -1,6 +1,6 @@
 import { apiFetch, handleResponse } from './api-streamer'
 
-export type UploadSource = 'automatic' | 'manual' | 'clip' | 'sync' | 'ha' | 'ha_append' | 'ha_resume'
+export type UploadSource = 'automatic' | 'manual' | 'clip' | 'sync' | 'ha' | 'ha_append' | 'ha_resume' | 'local'
 export type UploadState = 'queued' | 'running' | 'retrying' | 'submitting' | 'succeeded' | 'partial' | 'failed' | 'cancelled' | 'interrupted' | 'unknown' | 'paused' | 'skipped'
 
 export interface UploadQueueFile {
@@ -79,7 +79,7 @@ export interface UploadQueueFilters {
 
 export const uploadSourceLabels: Record<string, string> = {
   automatic: '自动投稿', manual: '手动投稿', clip: '切片发布', sync: '边录边传',
-  ha: 'HA 投稿', ha_append: 'HA 追加投稿', ha_resume: 'HA 补投',
+  ha: 'HA 投稿', ha_append: 'HA 追加投稿', ha_resume: 'HA 补投', local: '本地发布',
 }
 
 export const uploadStateMeta: Record<string, { label: string; tone: 'blue' | 'green' | 'orange' | 'red' | 'grey' }> = {
@@ -108,14 +108,19 @@ export function uploadPhaseLabel(phase: string | null | undefined): string {
 
 const groupLabels: Record<string, string> = {
   'automatic-pool': '自动投稿队列', 'clip-publish': '切片发布队列',
-  'manual': '手动投稿', 'sync': '边录边传', 'ha-pool': 'HA 投稿队列',
+  'manual': '手动投稿', 'sync': '边录边传', 'ha-pool': 'HA 投稿队列', local: '本地发布',
 }
 
 export function uploadGroupLabel(group: string) {
   return groupLabels[group] ?? '其他任务'
 }
 
-/** Tasks are ordered only within their real scheduler group; queue_position is shown only when supplied by the scheduler. */
+/** 展示顺序：创建时间从新到旧。调度序号仍显示在卡片上，不决定列表位置。 */
+export function sortUploadTasks(tasks: UploadQueueTask[]) {
+  return [...tasks].sort((a, b) => b.created_at - a.created_at || b.updated_at - a.updated_at || b.id.localeCompare(a.id))
+}
+
+/** Tasks stay in their scheduler group. Groups and tasks are both newest-first. */
 export function groupUploadTasks(tasks: UploadQueueTask[]) {
   const groups = new Map<string, UploadQueueTask[]>()
   for (const task of tasks) groups.set(task.scheduler_group || 'other', [...(groups.get(task.scheduler_group || 'other') ?? []), task])
@@ -123,9 +128,9 @@ export function groupUploadTasks(tasks: UploadQueueTask[]) {
     .map(([key, items]) => ({
       key,
       label: uploadGroupLabel(key),
-      tasks: items.sort((a, b) => a.order - b.order || a.created_at - b.created_at || a.id.localeCompare(b.id)),
+      tasks: sortUploadTasks(items),
     }))
-    .sort((a, b) => a.label.localeCompare(b.label, 'zh-CN'))
+    .sort((a, b) => (b.tasks[0]?.created_at ?? 0) - (a.tasks[0]?.created_at ?? 0) || (b.tasks[0]?.updated_at ?? 0) - (a.tasks[0]?.updated_at ?? 0) || a.label.localeCompare(b.label, 'zh-CN'))
 }
 
 export function formatUploadBytes(bytes: number | null | undefined): string {

@@ -26,6 +26,7 @@ use std::ffi::OsStr;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::task::Poll;
 use std::time::{Instant, UNIX_EPOCH};
@@ -496,6 +497,7 @@ pub async fn upload(
         // 检查文件是否已经上传
         if checkpoint.is_uploaded(video_path) {
             info!("Skipping already uploaded file: {}", video_path.display());
+            note_resumed_file(video_path);
             continue;
         }
 
@@ -592,18 +594,35 @@ pub async fn upload(
         // pb.tick()
 
         let instant = Instant::now();
+        let watched = crate::server::common::upload_observation::TaskObservation::current()
+            .map(|task| task.file(&file_name, Some(total_size)));
+        let parts = Arc::new(AtomicUsize::new(0));
 
         let video = uploader
-            .upload(client.clone(), limit, |vs| {
-                vs.map(|chunk| {
+            .upload(client.clone(), limit, {
+                let watched = watched.clone();
+                let parts = Arc::clone(&parts);
+                let pb = pb.clone();
+                move |vs| {
+                    let watched = watched.clone();
+                    let parts = Arc::clone(&parts);
                     let pb = pb.clone();
-                    let chunk = chunk?;
-                    let len = chunk.len();
-                    Ok((Progressbar::new(chunk, pb), len))
-                })
+                    vs.map(move |chunk| {
+                        let pb = pb.clone();
+                        let chunk = chunk?;
+                        let len = chunk.len();
+                        if let Some(file) = &watched {
+                            file.confirmed(parts.fetch_add(1, Ordering::Relaxed), len);
+                        }
+                        Ok((Progressbar::new(chunk, pb), len))
+                    })
+                }
             })
             .await
             .change_context_lazy(|| AppError::Unknown)?;
+        if let Some(file) = watched {
+            file.finish(None);
+        }
         pb.finish_and_clear();
         let t = instant.elapsed().as_millis();
         info!(
@@ -773,6 +792,21 @@ impl From<Progressbar> for Body {
     fn from(async_stream: Progressbar) -> Self {
         Body::wrap_stream(async_stream)
     }
+}
+
+fn note_resumed_file(path: &Path) {
+    let Some(task) = crate::server::common::upload_observation::TaskObservation::current() else {
+        return;
+    };
+    let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+        return;
+    };
+    let size = std::fs::metadata(path).map(|meta| meta.len()).unwrap_or(0);
+    let file = task.file(name, Some(size));
+    if let Ok(len) = usize::try_from(size) {
+        file.confirmed(0, len);
+    }
+    file.finish(None);
 }
 
 #[inline]

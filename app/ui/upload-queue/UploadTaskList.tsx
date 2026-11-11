@@ -6,7 +6,7 @@ import {formatSpan} from '@/app/lib/sessions'
 import { Button, Spin, Tag } from '@douyinfe/semi-ui'
 import {
   fetchUploadQueueTask, formatUploadBytes, formatUploadSpeed, uploadPhaseLabel,
-  groupUploadTasks, uploadSourceLabels, uploadStateLabel, uploadStateMeta, uploadTaskProgress, uploadPercent,
+  sortUploadTasks, uploadSourceLabels, uploadStateLabel, uploadStateMeta, uploadTaskProgress, uploadPercent,
   type UploadQueueTask,
 } from '@/app/lib/upload-queue'
 import styles from './upload-queue.module.scss'
@@ -114,9 +114,6 @@ function TaskCard({ task }: { task: UploadQueueTask }) {
 
 export function UploadTaskList({ tasks }: { tasks: UploadQueueTask[] }) {
   return <div className={styles.groups}>
-    {groupUploadTasks(tasks).map(group => <section className={styles.group} key={group.key}>
-      <header className={styles.groupHeader}><h2>{group.label}</h2><span>{group.tasks.length} 项</span></header>
-      {group.tasks.map(task => <TaskCard key={task.id} task={task} />)}
-    </section>)}
+    {sortUploadTasks(tasks).map(task => <TaskCard key={task.id} task={task} />)}
   </div>
 }

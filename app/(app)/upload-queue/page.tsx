@@ -100,6 +100,7 @@ function UploadQueueContent() {
               <option value="">全部来源</option><option value="automatic">自动投稿</option><option value="manual">手动投稿</option>
               <option value="clip">切片发布</option><option value="sync">边录边传</option><option value="ha">HA 投稿</option>
               <option value="ha_append">HA 追加投稿</option><option value="ha_resume">HA 补投</option>
+              <option value="local">本地发布</option>
             </select></label>
             <label>状态<select value={state} onChange={event => changeState(event.target.value)}>
               <option value="">全部状态</option><option value="queued">等待中</option><option value="running">上传中</option>

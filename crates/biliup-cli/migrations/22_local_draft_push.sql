@@ -1,0 +1,1 @@
+ALTER TABLE local_drafts ADD COLUMN no_disturbance INTEGER NOT NULL DEFAULT 0;

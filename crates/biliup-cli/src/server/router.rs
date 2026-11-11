@@ -86,6 +86,23 @@ pub fn router(service_register: ServiceRegister) -> Router<()> {
             get(crate::server::api::local_drafts::list_seasons),
         )
         .route(
+            "/v1/local-drafts/tags",
+            post(crate::server::api::local_drafts::create_tag),
+        )
+        .route(
+            "/v1/local-drafts/tags/active",
+            put(crate::server::api::local_drafts::set_active_tag),
+        )
+        .route(
+            "/v1/local-drafts/tags/{id}",
+            put(crate::server::api::local_drafts::update_tag)
+                .delete(crate::server::api::local_drafts::delete_tag),
+        )
+        .route(
+            "/v1/local-drafts/tags/{id}/apply",
+            post(crate::server::api::local_drafts::apply_tag),
+        )
+        .route(
             "/v1/local-drafts/{id}",
             put(crate::server::api::local_drafts::put_draft)
                 .delete(crate::server::api::local_drafts::delete_draft),

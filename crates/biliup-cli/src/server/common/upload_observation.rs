@@ -485,7 +485,7 @@ impl UploadObservations {
         .await;
         let summary = sqlx::query_as::<_, (i64,i64,i64)>("SELECT COALESCE(SUM(CASE WHEN state NOT IN ('succeeded','partial','failed','cancelled','interrupted','unknown','paused','skipped') AND json_extract(snapshot,'$.phase')='uploading' THEN 1 ELSE 0 END),0), COALESCE(SUM(state='queued'),0), COALESCE(SUM(state IN ('partial','failed','unknown','interrupted','paused')),0) FROM upload_observation_tasks WHERE source != 'processing'").fetch_one(&self.pool).await;
         let snapshots: Result<Vec<String>, sqlx::Error> = sqlx::query_scalar(&format!(
-            "SELECT snapshot FROM upload_observation_tasks WHERE {filter} ORDER BY CASE WHEN state IN ('succeeded','partial','failed','cancelled','interrupted','unknown','paused','skipped') THEN 1 ELSE 0 END, CASE WHEN state IN ('succeeded','partial','failed','cancelled','interrupted','unknown','paused','skipped') THEN updated_at END DESC, scheduler_group,task_order LIMIT ? OFFSET ?"
+            "SELECT snapshot FROM upload_observation_tasks WHERE {filter} ORDER BY created_at DESC, updated_at DESC, id DESC LIMIT ? OFFSET ?"
         )).bind(source).bind(source).bind(state).bind(state).bind(limit as i64).bind(offset as i64).fetch_all(&self.pool).await;
         let (total, (uploading, queued, attention), snapshots) = match (total, summary, snapshots) {
             (Ok(total), Ok(summary), Ok(snapshots)) => (total.max(0) as usize, summary, snapshots),
@@ -707,17 +707,10 @@ fn cached_queue(
         })
         .collect();
     tasks.sort_by(|a, b| {
-        let a_terminal = terminal(&a.state);
-        let b_terminal = terminal(&b.state);
-        a_terminal.cmp(&b_terminal).then_with(|| {
-            if a_terminal {
-                b.updated_at.cmp(&a.updated_at)
-            } else {
-                a.scheduler_group
-                    .cmp(&b.scheduler_group)
-                    .then(a.order.cmp(&b.order))
-            }
-        })
+        b.created_at
+            .cmp(&a.created_at)
+            .then(b.updated_at.cmp(&a.updated_at))
+            .then(b.id.cmp(&a.id))
     });
     let total = tasks.len();
     let mut summary = Summary::default();

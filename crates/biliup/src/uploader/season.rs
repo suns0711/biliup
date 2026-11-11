@@ -201,6 +201,11 @@ impl BiliBili {
         self.season_api().archive_view_by_vid(vid).await
     }
 
+    /// 查自己的稿件。刚投稿、审核中或仅自己可见时，公开接口会返回「啥都木有」。
+    pub async fn creator_archive_view_by_vid(&self, vid: &Vid) -> Result<ArchiveView> {
+        self.season_api().creator_archive_view_by_vid(vid).await
+    }
+
     /// 把稿件加入小节，可一次加入多条。
     pub async fn add_to_season(&self, section_id: u64, episodes: &[EpisodeAdd]) -> Result<()> {
         self.season_api().add_to_season(section_id, episodes).await
@@ -277,6 +282,20 @@ impl SeasonApi<'_> {
         Ok(serde_json::from_value(data)?)
     }
 
+    pub async fn creator_archive_view_by_vid(&self, vid: &Vid) -> Result<ArchiveView> {
+        let query = match vid {
+            Vid::Aid(aid) => ("aid", aid.to_string()),
+            Vid::Bvid(bvid) => ("bvid", bvid.clone()),
+        };
+        let request = self
+            .bili
+            .client
+            .get(format!("{}/x/vupre/web/archive/view", self.member))
+            .query(&[query]);
+        let data = call(request, TIMEOUT, "get creator archive").await?;
+        creator_archive_view(data)
+    }
+
     pub async fn add_to_season(&self, section_id: u64, episodes: &[EpisodeAdd]) -> Result<()> {
         let csrf = self.bili.get_csrf()?;
         let request = self
@@ -339,6 +358,61 @@ impl SeasonApi<'_> {
         call(request, SORT_TIMEOUT, "sort season episodes").await?;
         Ok(())
     }
+}
+
+#[derive(Deserialize)]
+struct CreatorArchiveBody {
+    #[serde(default)]
+    archive: CreatorArchive,
+    #[serde(default)]
+    videos: Vec<CreatorVideo>,
+}
+
+#[derive(Default, Deserialize)]
+struct CreatorArchive {
+    #[serde(default)]
+    aid: u64,
+    #[serde(default)]
+    bvid: String,
+    #[serde(default)]
+    title: String,
+}
+
+#[derive(Deserialize)]
+struct CreatorVideo {
+    cid: u64,
+    #[serde(default)]
+    title: String,
+    #[serde(default)]
+    index: u32,
+}
+
+fn creator_archive_view(data: Value) -> Result<ArchiveView> {
+    let body: CreatorArchiveBody = serde_json::from_value(data)?;
+    let pages: Vec<ViewPage> = body
+        .videos
+        .into_iter()
+        .map(|video| ViewPage {
+            cid: video.cid,
+            page: video.index,
+            part: video.title,
+            extra: Map::new(),
+        })
+        .collect();
+    let cid = pages.first().map(|page| page.cid).unwrap_or(0);
+    if body.archive.aid == 0 || cid == 0 {
+        return Err(Kind::Custom(
+            "get creator archive failed: response has no aid or cid".into(),
+        ));
+    }
+    Ok(ArchiveView {
+        aid: body.archive.aid,
+        bvid: body.archive.bvid,
+        title: body.archive.title,
+        cid,
+        pages,
+        extra: Map::new(),
+    })
 }
 
 /// 发出请求并检查 B 站的 `code`，成功时返回 `data`（可能是 `null`）。
@@ -671,6 +745,34 @@ mod tests {
         assert_eq!(req.query["bvid"], "BV1xx411c7mD");
         assert_eq!(view.aid, 12345);
         assert_eq!(view.first_cid(), 67890);
+    }
+
+    #[tokio::test]
+    async fn creator_archive_view_reads_unpublished_manuscript() {
+        let server = FakeServer::start(ok(json!({
+            "archive": {"aid": 117576323570437u64, "bvid": "BV1yH4p66EUP", "title": "审核中的稿件", "state": -30},
+            "videos": [{"cid": 43418321822u64, "title": "P1", "index": 1}]
+        })))
+        .await;
+        let bili = bili();
+
+        let view = api(&bili, &server)
+            .creator_archive_view_by_vid(&Vid::Bvid("BV1yH4p66EUP".into()))
+            .await
+            .unwrap();
+
+        let req = server.only_request();
+        assert_eq!(req.path, "/x/vupre/web/archive/view");
+        assert_eq!(req.query["bvid"], "BV1yH4p66EUP");
+        assert_eq!(
+            EpisodeAdd::from(&view),
+            EpisodeAdd {
+                aid: 117576323570437,
+                cid: 43418321822,
+                title: "审核中的稿件".into(),
+                charging_pay: 0,
+            }
+        );
     }
 
     #[tokio::test]

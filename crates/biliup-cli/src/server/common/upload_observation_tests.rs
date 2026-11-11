@@ -208,6 +208,40 @@ async fn old_history_is_paginated_from_sql_without_growing_the_live_cache() {
     );
 }
 
+#[tokio::test]
+async fn list_orders_newest_created_task_first() {
+    let pool = pool().await;
+    let observations = UploadObservations::new(pool);
+    observations.initialize().await.unwrap();
+    let older = observations.register(NewTask {
+        source: "local",
+        scheduler_group: "local",
+        title: "older",
+        streamer_name: None,
+        session_id: None,
+        template_name: None,
+        fifo: false,
+    });
+    tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+    let newer = observations.register(NewTask {
+        source: "manual",
+        scheduler_group: "manual",
+        title: "newer",
+        streamer_name: None,
+        session_id: None,
+        template_name: None,
+        fifo: false,
+    });
+    newer.finish("succeeded", None, None);
+    observations.flush().await;
+    let page = observations.list(None, None, 10, 0).await;
+    assert_eq!(
+        page.tasks.iter().map(|task| task.title.as_str()).collect::<Vec<_>>(),
+        ["newer", "older"]
+    );
+    drop(older);
+}
+
 #[test]
 fn scrub_hides_upos_credentials_and_url_userinfo() {
     for message in [

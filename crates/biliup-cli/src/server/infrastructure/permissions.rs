@@ -326,6 +326,14 @@ pub fn required_permission(method: &Method, route: &str, raw_path: &str) -> Opti
         "/v1/local-drafts" | "/v1/local-drafts/{id}/cover" if get => FileView,
         "/v1/local-drafts/settings" if method == Method::PUT => UploadSubmit,
         "/v1/local-drafts/seasons" if get => UploadSubmit,
+        "/v1/local-drafts/tags" if method == Method::POST => UploadSubmit,
+        "/v1/local-drafts/tags/active" if method == Method::PUT => UploadSubmit,
+        "/v1/local-drafts/tags/{id}"
+            if method == Method::PUT || method == Method::DELETE =>
+        {
+            UploadSubmit
+        }
+        "/v1/local-drafts/tags/{id}/apply" if method == Method::POST => UploadSubmit,
         "/v1/local-drafts/{id}"
             if method == Method::PUT || method == Method::DELETE =>
         {

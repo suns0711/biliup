@@ -29,6 +29,31 @@ export const MAX_PARTS = 100
 /** 定时发布：至少几小时之后、最多几天之内（与上传模板的定时选项、后端检查相同） */
 export const DTIME_MIN_HOURS = 4
 export const DTIME_MAX_DAYS = 15
+
+/** 本地待发布的定时发送默认落在这两个钟点。分钟另算，避免整点。 */
+const PUBLISH_SLOT_HOURS = [11, 18]
+
+/**
+ * 下一个可用的定时发送时刻（Unix 秒）：上午 11 点多，或下午 6 点多。
+ * 必须晚于现在至少 `DTIME_MIN_HOURS` 小时。`seed` 用来把分钟错开。
+ */
+export function defaultScheduledPublish(nowMs: number, seed = 0): number {
+  const minute = 8 + (Math.abs(seed) % 22)
+  const earliest = nowMs + DTIME_MIN_HOURS * 3_600_000 + 60_000
+  const latest = nowMs + DTIME_MAX_DAYS * 86_400_000
+  const day = new Date(earliest)
+  day.setHours(0, 0, 0, 0)
+  for (let i = 0; i <= DTIME_MAX_DAYS; i++) {
+    for (const hour of PUBLISH_SLOT_HOURS) {
+      const slot = new Date(day)
+      slot.setHours(hour, minute, 0, 0)
+      const ms = slot.getTime()
+      if (ms >= earliest && ms <= latest) return Math.floor(ms / 1000)
+    }
+    day.setDate(day.getDate() + 1)
+  }
+  return Math.floor(earliest / 1000)
+}
 export const COVER_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 export const MAX_COVER_BYTES = 5 * 1024 * 1024
 /** B 站的稿件管理页：投稿结果未知时让用户去这里核对 */
